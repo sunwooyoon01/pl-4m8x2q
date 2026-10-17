@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>productivity log</title>
+<title>productivity</title>
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="productivity log">
+<meta name="apple-mobile-web-app-title" content="productivity">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="theme-color" content="#000000">
 <style>
@@ -78,13 +78,27 @@ main{position:relative}
 .leg{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0}.leg span{display:flex;align-items:center;gap:6px;font-size:12px}
 .calhead{display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px}
 .late{color:var(--o)}
+html{-webkit-text-size-adjust:100%}
+body{touch-action:manipulation}
+input,textarea{font-size:16px}
+input[type=date]{display:block;min-width:0;-webkit-appearance:none;appearance:none;text-align:left}
+.book .top{flex-wrap:wrap}.book .top .hint{flex:1 1 100%;order:3;margin:0}
+@media (max-width:560px){
+.row{flex-wrap:wrap}
+.row>label,.row>input,.row>.btn,.row>input[type=date]{flex:1 1 100%!important}
+.stats{grid-template-columns:1fr 1fr}
+.stats div:nth-child(odd){border-left:0}
+.stats div:nth-child(n+3){border-top:1px solid var(--b)}
+.stats div:last-child:nth-child(odd){grid-column:1/-1}
+.tabs .tab{padding:0 2px;font-size:13px;letter-spacing:.02em}
+}
 @media (prefers-reduced-motion:reduce){#toast{transition:none}}
 </style>
 </head>
 <body>
 <main>
 <button id='thbtn' aria-label='change color theme' aria-expanded='false'><i></i><i></i></button><div id='thpanel' hidden></div>
-<h1>productivity log</h1>
+<h1>productivity</h1>
 <nav class="tabs"><button class="tab" data-tab="today">today</button><button class="tab" data-tab="cal">calendar</button><button class="tab" data-tab="write">writing</button><button class="tab" data-tab="read">reading</button><button class="tab" data-tab="data">backup</button></nav>
 <div id="view"></div>
 </main>
@@ -100,24 +114,26 @@ function load(){try{const t=localStorage.getItem(KEY);if(t){const o=JSON.parse(t
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 let S=load(),tab='today',confirmReset=false,tt,sel=T,curTheme='auto';
 const cal={y:new Date().getFullYear(),m:new Date().getMonth()};
-const PAL=['#e5484d','#f5a524','#46a758','#12a594','#3e63dd','#8e4ec6','#d6409f','#978365'];
+const PAL=['#e5484d','#f5a524','#46a758','#8e4ec6','#d6409f','#978365'],FIX={write:'#3e63dd',read:'#12a594'};
 const hc=(h,i)=>h.c||PAL[i%PAL.length];
+const hd=h=>h.f==='write'?S.w.logs.map(l=>l.date):h.f==='read'?S.reads.map(r=>r.date):h.days;
+const allH=()=>[{id:'fx-write',n:'writing',f:'write',c:FIX.write},{id:'fx-read',n:'reading',f:'read',c:FIX.read},...S.habits];
 const fd=s=>new Date(s+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
 const dleft=s=>Math.round((new Date(s+'T12:00:00')-new Date(T+'T12:00:00'))/864e5);
 const dueTxt=n=>n<0?(-n)+' day'+(n<-1?'s':'')+' overdue':n===0?'due today':n===1?'due tomorrow':'in '+n+' days';
 function deadlines(){const a=S.dl.map(d=>({id:d.id,t:d.t,date:d.date,own:1}));if(S.w.deadline)a.push({t:S.w.title+' (writing)',date:S.w.deadline});return a.filter(d=>d.date).sort((x,y)=>x.date<y.date?-1:1)}
 function toast(m){$('#tm').textContent=m;$('#toast').classList.add('show');clearTimeout(tt);tt=setTimeout(()=>$('#toast').classList.remove('show'),2200)}
 const val=id=>($(id)||{value:''}).value.trim();
-function streak(h){const s=new Set(h.days);let n=0,i=s.has(T)?0:1;while(s.has(ago(i))){n++;i++}return n}
+function streak(h){const s=new Set(hd(h));let n=0,i=s.has(T)?0:1;while(s.has(ago(i))){n++;i++}return n}
 
 function vToday(){const dn=S.tasks.filter(t=>t.done).length;
 return `<div class='cols'><section><h2>tasks</h2><div class='row'><input id='nt' data-enter='addt' placeholder='add a task' autocomplete='off'><button class='btn' data-a='addt'>add</button></div>
 <ul>${S.tasks.map(t=>`<li class='${t.done?'done':''}'><button class='chk${t.done?' on':''}' data-a='tog' data-id='${t.id}' aria-label='toggle'></button><span>${esc(t.t)}</span><button class='x' data-a='delt' data-id='${t.id}' aria-label='delete'>×</button></li>`).join('')}</ul>
 ${S.tasks.length?'':`<p class='hint'>no tasks yet. add the first thing you want to finish today.</p>`}${dn?`<button class='btn ghost' data-a='clr'>clear ${dn} done</button>`:''}</section>
 <section><h2>habits</h2><div class='row'><input id='nh' data-enter='addh' placeholder='add a daily habit' autocomplete='off'><button class='btn' data-a='addh'>add</button></div>
-${S.habits.map((h,hi)=>{const s=new Set(h.days),on=s.has(T),c=hc(h,hi);return `<div class='hab' style='--hc:${c}'><div class='top'><button class='sw' style='background:${c}' data-a='col' data-id='${h.id}' aria-label='change color'></button><b>${esc(h.n)}</b><span class='hint'>${streak(h)} day streak</span><button class='x' data-a='delh' data-id='${h.id}' aria-label='delete'>×</button></div>
-<div class='top'><div class='dots'>${[13,12,11,10,9,8,7,6,5,4,3,2,1,0].map(i=>`<i class='dot${s.has(ago(i))?' on':''}'></i>`).join('')}</div><span style='flex:1'></span><button class='btn hb${on?' on':''}' data-a='toh' data-id='${h.id}'>${on?'undo today':'done today'}</button></div></div>`}).join('')}
-${S.habits.length?'':`<p class='hint'>no habits yet. start with one you can do in under five minutes.</p>`}</section></div>${vDl()}`}
+${allH().map((h,hi)=>{const s=new Set(hd(h)),on=s.has(T),c=hc(h,hi);return `<div class='hab' style='--hc:${c}'><div class='top'>${h.f?`<i class='sw' style='background:${c}'></i>`:`<button class='sw' style='background:${c}' data-a='col' data-id='${h.id}' aria-label='change color'></button>`}<b>${esc(h.n)}</b><span class='hint'>${streak(h)} day streak</span>${h.f?`<span style='width:44px;flex:none'></span>`:`<button class='x' data-a='delh' data-id='${h.id}' aria-label='delete'>×</button>`}</div>
+<div class='top'><div class='dots'>${[13,12,11,10,9,8,7,6,5,4,3,2,1,0].map(i=>`<i class='dot${s.has(ago(i))?' on':''}'></i>`).join('')}</div><span style='flex:1'></span>${h.f?`<span class='hint'>${on?'done today':h.f==='write'?'checks itself when you log a session':'checks itself when you log pages'}</span>`:`<button class='btn hb${on?' on':''}' data-a='toh' data-id='${h.id}'>${on?'undo today':'done today'}</button>`}</div></div>`}).join('')}
+${S.habits.length?'':`<p class='hint'>add your own habit too. start with one you can do in under five minutes.</p>`}</section></div>${vDl()}`}
 
 function vWrite(){const w=S.w,tot=w.logs.reduce((a,l)=>a+l.w,0),mins=w.logs.reduce((a,l)=>a+(l.m||0),0),pct=w.target?Math.min(100,tot/w.target*100):0;
 const avg=w.logs.filter(l=>l.date>=ago(13)).reduce((a,l)=>a+l.w,0)/14,rem=Math.max(0,w.target-tot),td=w.logs.filter(l=>l.date===T).reduce((a,l)=>a+l.w,0);
@@ -140,12 +156,12 @@ function vDl(){const L=deadlines().slice(0,8);
 return `<section><h2>upcoming deadlines</h2><div class='row'><input id='dlt' data-enter='adddl' placeholder='what is due' autocomplete='off'><input id='dld' type='date' style='flex:0 0 160px'><button class='btn' data-a='adddl'>add</button></div>
 <ul>${L.map(d=>{const n=dleft(d.date);return `<li><span class='${n<0?'late':''}'>${esc(d.t)}</span><span class='hint' style='flex:none'>${fd(d.date)}, ${dueTxt(n)}</span>${d.own?`<button class='x' data-a='deldl' data-id='${d.id}' aria-label='delete'>×</button>`:`<span style='width:44px;flex:none'></span>`}</li>`}).join('')}</ul>${L.length?'':`<p class='hint'>nothing due. add a deadline, or set one on your writing project.</p>`}</section>`}
 function vCal(){const{y,m}=cal,first=new Date(y,m,1),off=(first.getDay()+6)%7,n=new Date(y,m+1,0).getDate(),dl=new Set(deadlines().map(d=>d.date));
-let h=`<section><h2>calendar</h2>${S.habits.length?`<div class='leg'>${S.habits.map((x,i)=>`<span><i class='pip' style='background:${hc(x,i)}'></i>${esc(x.n)}</span>`).join('')}</div>`:`<p class='hint'>add habits on the today tab. each habit gets a color that shows up here.</p>`}<div class='calhead'><button class='btn ghost' data-a='cprev' aria-label='previous month'>‹</button><b>${first.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</b><button class='btn ghost' data-a='cnext' aria-label='next month'>›</button></div><div class='cal'>`+['m','t','w','t','f','s','s'].map(x=>`<i class='dow'>${x}</i>`).join('');
+let h=`<section><h2>calendar</h2>${allH().length?`<div class='leg'>${allH().map((x,i)=>`<span><i class='pip' style='background:${hc(x,i)}'></i>${esc(x.n)}</span>`).join('')}</div>`:`<p class='hint'>add habits on the today tab. each habit gets a color that shows up here.</p>`}<div class='calhead'><button class='btn ghost' data-a='cprev' aria-label='previous month'>‹</button><b>${first.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</b><button class='btn ghost' data-a='cnext' aria-label='next month'>›</button></div><div class='cal'>`+['m','t','w','t','f','s','s'].map(x=>`<i class='dow'>${x}</i>`).join('');
 for(let i=0;i<off;i++)h+=`<span class='cd blank'></span>`;
-for(let d=1;d<=n;d++){const s=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`,pips=S.habits.map((x,i)=>x.days.includes(s)?`<i class='pip' style='background:${hc(x,i)}'></i>`:'').join('');
+for(let d=1;d<=n;d++){const s=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`,pips=allH().map((x,i)=>hd(x).includes(s)?`<i class='pip' style='background:${hc(x,i)}'></i>`:'').join('');
 h+=`<button class='cd${s===T?' today':''}${s===sel?' sel':''}${dl.has(s)?' dl':''}' data-a='csel' data-id='${s}'>${d}<span class='pips'>${pips}</span></button>`}
 const ds=deadlines().filter(x=>x.date===sel);
-return h+`</div><h2 style='margin-top:24px'>${fd(sel)}</h2><p class='hint'>tap a habit to mark it done or not done for this day. orange underline on a day means something is due.</p><ul>${S.habits.map((x,i)=>{const on=x.days.includes(sel),c=hc(x,i);return `<li><button class='chk${on?' on':''}' style='border-color:${c};${on?'background:'+c:''}' data-a='tohd' data-id='${x.id}' aria-label='toggle'></button><span>${esc(x.n)}</span></li>`}).join('')}</ul>${ds.map(x=>`<p class='hint late'>due: ${esc(x.t)}</p>`).join('')}</section>`}
+return h+`</div><h2 style='margin-top:24px'>${fd(sel)}</h2><p class='hint'>tap a habit to mark it done or not done for this day. reading and writing check themselves. orange underline on a day means something is due.</p><ul>${allH().map((x,i)=>{const on=hd(x).includes(sel),c=hc(x,i),st=`border-color:${c};${on?'background:'+c:''}`;return x.f?`<li><i class='chk${on?' on':''}' style='${st}'></i><span>${esc(x.n)}</span><span class='hint' style='flex:none'>automatic</span></li>`:`<li><button class='chk${on?' on':''}' style='${st}' data-a='tohd' data-id='${x.id}' aria-label='toggle'></button><span>${esc(x.n)}</span></li>`}).join('')}</ul>${ds.map(x=>`<p class='hint late'>due: ${esc(x.t)}</p>`).join('')}</section>`}
 function vData(){return `<section><h2>backup</h2><p class='hint'>everything is saved in this browser only. copy this text somewhere safe, or paste a backup here and load it.</p><textarea id='bk'>${esc(JSON.stringify(S))}</textarea><div class='row'><button class='btn' data-a='load'>load pasted backup</button><button class='btn ghost' data-a='reset'>${confirmReset?'tap again to erase everything':'erase all data'}</button></div></section>`}
 
 function render(){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('act',b.dataset.tab===tab));$('#view').innerHTML=({today:vToday,cal:vCal,write:vWrite,read:vRead,data:vData})[tab]()}
@@ -177,14 +193,15 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-tab],[data
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.enter)act(e.target.dataset.enter,e.target.dataset.id)});
 document.addEventListener('change',e=>{const k=e.target.dataset&&e.target.dataset.w;if(k){S.w[k]=k==='target'?(parseInt(e.target.value)||0):e.target.value;save();render()}});
 const THEMES=[{n:'auto',g:'follows your device',grp:'default'},
-{n:'asagi',g:'pale teal',bg:'#e6f0ef',ink:'#1f3a3d',mute:'#6a8486',b:'#3f8a8c',o:'#c98a5a',d:0,grp:'calm'},
-{n:'matcha',g:'green tea',bg:'#e9ecdc',ink:'#2c3a24',mute:'#77836a',b:'#6b8e4e',o:'#b9803f',d:0,grp:'calm'},
-{n:'sakura',g:'cherry blossom',bg:'#f3e6e4',ink:'#3a2a2e',mute:'#86737a',b:'#b0607a',o:'#6b8794',d:0,grp:'calm'},
-{n:'fuji',g:'wisteria',bg:'#ebe7f2',ink:'#2e2a3d',mute:'#7b7690',b:'#7a6aa8',o:'#c08a6a',d:0,grp:'calm'},
-{n:'sumi',g:'ink',bg:'#000000',ink:'#ffffff',mute:'#8a8a8a',b:'#4cc9f0',o:'#ff7a45',d:1,grp:'lock in'},
-{n:'ai',g:'indigo',bg:'#0b1220',ink:'#e6ecf5',mute:'#7f8ca3',b:'#4f8cff',o:'#ffb454',d:1,grp:'lock in'},
-{n:'shu',g:'vermilion',bg:'#120707',ink:'#f5e8e4',mute:'#a08884',b:'#ff4d4d',o:'#ffb020',d:1,grp:'lock in'},
-{n:'moegi',g:'spring green',bg:'#060d08',ink:'#e6f5e8',mute:'#7f9a84',b:'#5cf27a',o:'#ffd24a',d:1,grp:'lock in'}];
+{n:'asagi',g:'pale teal',bg:'#e6f0ef',ink:'#1f3a3d',mute:'#6a8486',b:'#3f8a8c',o:'#c98a5a',d:0,grp:'day'},
+{n:'matcha',g:'green tea',bg:'#e9ecdc',ink:'#2c3a24',mute:'#77836a',b:'#6b8e4e',o:'#b9803f',d:0,grp:'day'},
+{n:'sakura',g:'cherry blossom',bg:'#f3e6e4',ink:'#3a2a2e',mute:'#86737a',b:'#b0607a',o:'#6b8794',d:0,grp:'day'},
+{n:'fuji',g:'wisteria',bg:'#ebe7f2',ink:'#2e2a3d',mute:'#7b7690',b:'#7a6aa8',o:'#c08a6a',d:0,grp:'day'},
+{n:'sumi',g:'ink',bg:'#000000',ink:'#ffffff',mute:'#8a8a8a',b:'#4cc9f0',o:'#ff7a45',d:1,grp:'night'},
+{n:'ai',g:'indigo',bg:'#0b1220',ink:'#e6ecf5',mute:'#7f8ca3',b:'#4f8cff',o:'#ffb454',d:1,grp:'night'},
+{n:'shu',g:'vermilion',bg:'#120707',ink:'#f5e8e4',mute:'#a08884',b:'#ff4d4d',o:'#ffb020',d:1,grp:'night'},
+{n:'moegi',g:'spring green',bg:'#060d08',ink:'#e6f5e8',mute:'#7f9a84',b:'#5cf27a',o:'#ffd24a',d:1,grp:'night'},
+{n:'mono',g:'black and white',bg:'#000000',ink:'#ffffff',mute:'#8a8a8a',b:'#d9d9d9',o:'#ffffff',d:1,grp:'night'}];
 function applyTheme(n){const t=THEMES.find(x=>x.n===n)||THEMES[0],s=document.documentElement.style;curTheme=t.n;
 ['--bg','--ink','--mute','--b','--o','color-scheme'].forEach(k=>s.removeProperty(k));
 if(t.bg){s.setProperty('--bg',t.bg);s.setProperty('--ink',t.ink);s.setProperty('--mute',t.mute);s.setProperty('--b',t.b);s.setProperty('--o',t.o);s.setProperty('color-scheme',t.d?'dark':'light')}
